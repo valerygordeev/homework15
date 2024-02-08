@@ -1,46 +1,66 @@
-##homework15
-#PAM
-```
+### homework15
+# PAM
+
 1. Загружаем систему "generic/centos8s"  версии 4.3.12 в ВМ с помощью vagrant
-2. Подключаемся к созданной ВМ: 
+2. Подключаемся к созданной ВМ:
+     ```
      vagrant ssh
-3. Переходим в root-пользователя: 
+     ```
+3. Переходим в root-пользователя:
+     ```
      sudo su
-4. Создаём пользователя otusadm и otus: 
+     ```
+4. Создаём пользователя otusadm и otus:
+     ```
      useradd otusadm && sudo useradd otus
-4. Назначаем пароли для созданных пользователей:
+     ```
+5. Назначаем пароли для созданных пользователей:
+     ```
      echo "Otus2022!" | passwd --stdin otusadm && echo "Otus2022!" | passwd --stdin otus
-5. Создаём группу admin: 
+     ```
+6. Создаём группу admin:
+     ```
      groupadd -f admin
-6. Добавляем пользователей vagrant,root и otusadm в группу admin:
+     ```
+7. Добавляем пользователей vagrant,root и otusadm в группу admin:
+     ```
      usermod otusadm -a -G admin && usermod root -a -G admin && usermod vagrant -a -G admin
-7. Проверяем вхождение пользователей в группу admin:
+     ```
+9. Проверяем вхождение пользователей в группу admin:
+     ```
      [root@pam vagrant]# cat /etc/group | grep admin
      admin:x:1003:otusadm,root,vagrant
-8. Проверяем, что они созданные пользователи могут подключаться по SSH к ВМ. Вводим команду на хостовой машины: 
+     ```
+10. Проверяем, что они созданные пользователи могут подключаться по SSH к ВМ. Вводим команду на хостовой машины:
+     ```
      ssh otus@192.168.57.10
      ssh otusadm@192.168.57.10
-9. Создаем файл-скрипт для проверки выходного дня и определения вхождения пользователя в группу admin:
+     ```
+11. Создаем файл-скрипт для проверки выходного дня и определения вхождения пользователя в группу admin:
+     ```
      #!/bin/bash
      #Первое условие: если день недели суббота или воскресенье
      if [ $(date +%a) = "Sat" ] || [ $(date +%a) = "Sun" ]; then
       #Второе условие: входит ли пользователь в группу admin
       if getent group admin | grep -qw "$PAM_USER"; then
-             #Если пользователь входит в группу admin, то он может подключиться
-             exit 0
-           else
-             #Иначе ошибка (не сможет подключиться)
+             #Если пользователь входит в группу admin, то он не сможет подключиться
              exit 1
+           else
+             #Иначе, другой пользователь, не входящий в группу admin, сможет подключиться
+             exit 0
          fi
        #Если день не выходной, то подключиться может любой пользователь
        else
          exit 0
      fi
-     
-     Записываем его в /usr/local/bin/login.sh
-10. Назначаем права на исполнение: 
+     ```
+    Записываем его в /usr/local/bin/login.sh
+12. Назначаем права на исполнение:
+     ```
      chmod +x /usr/local/bin/login.sh
-11. Указываем в файле /etc/pam.d/sshd модуль pam_exec для запуска внешних команд и наш скрипт:
+     ```
+13. Вставляем в файл /etc/pam.d/sshd модуль pam_exec для запуска внешних команд и наш скрипт:
+     ```
      [root@pam vagrant]# cat /etc/pam.d/sshd
      #%PAM-1.0
      auth       substack     password-auth
@@ -60,19 +80,27 @@
      session    optional     pam_motd.so
      session    include      password-auth
      session    include      postlogin
-
-12. Останавливаем гостевые дополнения включая синхронизацию времени
+     ```
+14. Останавливаем гостевые дополнения включая синхронизацию времени
+     ```
      service vboxadd-service stop
-13. Подключаемся к ВМ c хостовой машины (для наглядности в другом терминале):
+     ```
+15. Подключаемся к ВМ c хостовой машины (для наглядности в другом терминале):
+     ```
      ssh otus@192.168.57.10
      ssh otusadm@192.168.57.10
+     ```
     Проверяем подключение и дату
-14. Заходим на ВМ по vagrant ssh и меняем дату на выходной день, например 4 февраля 2024 - воскресенье.
+16. Заходим на ВМ по vagrant ssh и меняем дату на выходной день, например 4 февраля 2024 - воскресенье.
+     ```
      date 020412302024.00
-15. Повторяем п.13. Но теперь удается войти на ВМ только пользователю otus, т.к. пользователь otusadm входит в группу admin, а пользователям группы admin запрещено входить на ВМ по выходным дням согласно скрипту login.sh.
-16. Проверяем, что запрет на вход осуществляется модулем PAM auth:
+     ```
+17. Повторяем п.13. Но теперь удается войти на ВМ только пользователю otus, т.к. пользователь otusadm входит в группу admin,
+а пользователям группы admin запрещено входить на ВМ по выходным дням согласно скрипту login.sh.
+18. Проверяем, что запрет на вход осуществляется модулем PAM auth:
+     ```
      tail /var/log/secure
-     
+    
      [root@pam vagrant]# tail -n 30 /var/log/secure
      Feb  8 06:07:26 pam sshd[4645]: pam_unix(sshd:session): session closed for user otus
      Feb  8 06:07:36 pam systemd[4657]: pam_unix(systemd-user:session): session closed for user otus
@@ -104,4 +132,8 @@
      Feb  4 12:31:15 pam sshd[4901]: pam_exec(sshd:auth): /usr/local/bin/login.sh failed: exit code 1
      Feb  4 12:31:17 pam sshd[4901]: Failed password for otusadm from 192.168.57.1 port 35806 ssh2
      Feb  4 12:31:18 pam sshd[4901]: Connection closed by authenticating user otusadm 192.168.57.1 port 35806 [preauth]
-```
+     ```
+     Результат проверки положительный:
+     ```
+     pam_exec(sshd:auth): /usr/local/bin/login.sh failed: exit code 1
+     ```
